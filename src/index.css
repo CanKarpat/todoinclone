@@ -76,9 +76,44 @@ input, select, textarea {
 .app-main {
   flex: 1;
   width: 100%;
-  max-width: 720px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px 60px;
+}
+
+.narrow {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.board {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  overflow-x: auto;
+}
+
+.board-column {
+  flex: 1;
+  min-width: 260px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.board-column .add-form {
+  flex-direction: column;
+}
+
+@media (max-width: 900px) {
+  .board {
+    flex-direction: column;
+  }
+
+  .board-column {
+    width: 100%;
+  }
 }
 
 .btn-ghost {

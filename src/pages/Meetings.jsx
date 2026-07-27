@@ -72,7 +72,7 @@ export default function Meetings() {
     .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at))
 
   return (
-    <div>
+    <div className="narrow">
       <h1>Toplantılar</h1>
 
       <form className="add-form" onSubmit={handleAdd}>

@@ -13,6 +13,14 @@ function tagClass(tag) {
   return 'tag'
 }
 
+function todayDateStr() {
+  const d = new Date()
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 function dateKey(iso) {
   const d = new Date(iso)
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
@@ -45,13 +53,16 @@ function groupByCompletedDate(items) {
 
 export default function Todos() {
   const [todos, setTodos] = useState([])
+  const [routines, setRoutines] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [tag, setTag] = useState('')
+  const [routineTitle, setRoutineTitle] = useState('')
 
   useEffect(() => {
     fetchTodos()
+    fetchRoutines()
   }, [])
 
   async function fetchTodos() {
@@ -63,6 +74,14 @@ export default function Todos() {
     if (error) setError('Görevler yüklenemedi.')
     else setTodos(data)
     setLoading(false)
+  }
+
+  async function fetchRoutines() {
+    const { data, error } = await supabase
+      .from('routines')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (!error) setRoutines(data)
   }
 
   async function handleAdd(e) {
@@ -115,8 +134,45 @@ export default function Todos() {
     }
   }
 
+  async function handleAddRoutine(e) {
+    e.preventDefault()
+    if (!routineTitle.trim()) return
+    const { data, error } = await supabase
+      .from('routines')
+      .insert({ title: routineTitle.trim() })
+      .select()
+      .single()
+    if (!error) {
+      setRoutines((prev) => [data, ...prev])
+      setRoutineTitle('')
+    }
+  }
+
+  async function toggleRoutineDone(routine) {
+    const today = todayDateStr()
+    const isDoneToday = routine.last_completed_date === today
+    const nextValue = isDoneToday ? null : today
+    const { error } = await supabase
+      .from('routines')
+      .update({ last_completed_date: nextValue })
+      .eq('id', routine.id)
+    if (!error) {
+      setRoutines((prev) =>
+        prev.map((r) => (r.id === routine.id ? { ...r, last_completed_date: nextValue } : r))
+      )
+    }
+  }
+
+  async function deleteRoutine(id) {
+    const { error } = await supabase.from('routines').delete().eq('id', id)
+    if (!error) {
+      setRoutines((prev) => prev.filter((r) => r.id !== id))
+    }
+  }
+
   if (loading) return <p className="empty-text">Yükleniyor...</p>
 
+  const today = todayDateStr()
   const activeTodos = todos.filter((t) => !t.moved_to_completed)
   const todayTodos = activeTodos.filter((t) => t.is_today)
   const otherTodos = activeTodos.filter((t) => !t.is_today)
@@ -126,78 +182,113 @@ export default function Todos() {
     <div>
       <h1>Görevler</h1>
 
-      <form className="add-form" onSubmit={handleAdd}>
-        <input
-          type="text"
-          placeholder="Yeni görev başlığı"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <select value={tag} onChange={(e) => setTag(e.target.value)}>
-          {TAG_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <button type="submit" className="btn-primary">Ekle</button>
-      </form>
-
       {error && <p className="error-text">{error}</p>}
 
-      <h2 className="section-title">Bugün Yapılacaklar</h2>
-      {todayTodos.length === 0 ? (
-        <p className="empty-text">Bugün için işaretli görev yok.</p>
-      ) : (
-        <ul className="list">
-          {todayTodos.map((todo) => (
-            <TodoItem
-              key={todo.id}
-              todo={todo}
-              onToggleDone={toggleDone}
-              onToggleToday={toggleToday}
-              onMoveToCompleted={moveToCompleted}
-              onDelete={deleteTodo}
+      <div className="board">
+        <section className="board-column">
+          <h2 className="section-title">Günlük Rutinler</h2>
+          <form className="add-form" onSubmit={handleAddRoutine}>
+            <input
+              type="text"
+              placeholder="Yeni rutin"
+              value={routineTitle}
+              onChange={(e) => setRoutineTitle(e.target.value)}
             />
-          ))}
-        </ul>
-      )}
-
-      <h2 className="section-title">Tüm Görevler</h2>
-      {otherTodos.length === 0 ? (
-        <p className="empty-text">Görev yok.</p>
-      ) : (
-        <ul className="list">
-          {otherTodos.map((todo) => (
-            <TodoItem
-              key={todo.id}
-              todo={todo}
-              onToggleDone={toggleDone}
-              onToggleToday={toggleToday}
-              onMoveToCompleted={moveToCompleted}
-              onDelete={deleteTodo}
-            />
-          ))}
-        </ul>
-      )}
-
-      <h2 className="section-title">Tamamlananlar</h2>
-      {completedGroups.length === 0 ? (
-        <p className="empty-text">Tamamlanmış görev yok.</p>
-      ) : (
-        completedGroups.map((group) => (
-          <div key={group.key}>
-            <h3 className="date-heading">{formatDateHeading(group.date)}</h3>
+            <button type="submit" className="btn-primary">Ekle</button>
+          </form>
+          {routines.length === 0 ? (
+            <p className="empty-text">Henüz rutin eklenmedi.</p>
+          ) : (
             <ul className="list">
-              {group.items.map((todo) => (
-                <li key={todo.id} className="list-item completed">
-                  <span className="item-title done">{todo.title}</span>
-                  {todo.tag && <span className={tagClass(todo.tag)}>{todo.tag}</span>}
-                  <button className="btn-danger" onClick={() => deleteTodo(todo.id)}>Sil</button>
-                </li>
+              {routines.map((routine) => (
+                <RoutineItem
+                  key={routine.id}
+                  routine={routine}
+                  doneToday={routine.last_completed_date === today}
+                  onToggle={toggleRoutineDone}
+                  onDelete={deleteRoutine}
+                />
               ))}
             </ul>
-          </div>
-        ))
-      )}
+          )}
+        </section>
+
+        <section className="board-column">
+          <h2 className="section-title">Bugün Yapılacaklar</h2>
+          {todayTodos.length === 0 ? (
+            <p className="empty-text">Bugün için işaretli görev yok.</p>
+          ) : (
+            <ul className="list">
+              {todayTodos.map((todo) => (
+                <TodoItem
+                  key={todo.id}
+                  todo={todo}
+                  onToggleDone={toggleDone}
+                  onToggleToday={toggleToday}
+                  onMoveToCompleted={moveToCompleted}
+                  onDelete={deleteTodo}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="board-column">
+          <h2 className="section-title">Tüm Görevler</h2>
+          <form className="add-form" onSubmit={handleAdd}>
+            <input
+              type="text"
+              placeholder="Yeni görev başlığı"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <select value={tag} onChange={(e) => setTag(e.target.value)}>
+              {TAG_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <button type="submit" className="btn-primary">Ekle</button>
+          </form>
+          {otherTodos.length === 0 ? (
+            <p className="empty-text">Görev yok.</p>
+          ) : (
+            <ul className="list">
+              {otherTodos.map((todo) => (
+                <TodoItem
+                  key={todo.id}
+                  todo={todo}
+                  onToggleDone={toggleDone}
+                  onToggleToday={toggleToday}
+                  onMoveToCompleted={moveToCompleted}
+                  onDelete={deleteTodo}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="board-column">
+          <h2 className="section-title">Tamamlananlar</h2>
+          {completedGroups.length === 0 ? (
+            <p className="empty-text">Tamamlanmış görev yok.</p>
+          ) : (
+            completedGroups.map((group) => (
+              <div key={group.key}>
+                <h3 className="date-heading">{formatDateHeading(group.date)}</h3>
+                <ul className="list">
+                  {group.items.map((todo) => (
+                    <li key={todo.id} className="list-item completed">
+                      <span className="item-title done">{todo.title}</span>
+                      {todo.tag && <span className={tagClass(todo.tag)}>{todo.tag}</span>}
+                      <button className="btn-danger" onClick={() => deleteTodo(todo.id)}>Sil</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
+        </section>
+      </div>
     </div>
   )
 }
@@ -218,6 +309,16 @@ function TodoItem({ todo, onToggleDone, onToggleToday, onMoveToCompleted, onDele
         </button>
       )}
       <button className="btn-danger" onClick={() => onDelete(todo.id)}>Sil</button>
+    </li>
+  )
+}
+
+function RoutineItem({ routine, doneToday, onToggle, onDelete }) {
+  return (
+    <li className="list-item">
+      <input type="checkbox" checked={doneToday} onChange={() => onToggle(routine)} />
+      <span className={`item-title${doneToday ? ' done' : ''}`}>{routine.title}</span>
+      <button className="btn-danger" onClick={() => onDelete(routine.id)}>Sil</button>
     </li>
   )
 }
