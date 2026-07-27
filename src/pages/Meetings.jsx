@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { useGameLogic } from '../hooks/useGameLogic'
+
+const MEETING_XP = 50
+const MISSED_PENALTY = 10
 
 function formatDateTime(iso) {
   return new Date(iso).toLocaleString('tr-TR', {
@@ -18,6 +22,7 @@ export default function Meetings() {
   const [title, setTitle] = useState('')
   const [startsAt, setStartsAt] = useState('')
   const [note, setNote] = useState('')
+  const { addXP, penalizeStreak } = useGameLogic()
 
   useEffect(() => {
     fetchMeetings()
@@ -29,9 +34,29 @@ export default function Meetings() {
       .from('meetings')
       .select('*')
       .order('starts_at', { ascending: true })
-    if (error) setError('Toplantılar yüklenemedi.')
-    else setMeetings(data)
+    if (error) {
+      setError('Toplantılar yüklenemedi.')
+    } else {
+      setMeetings(data)
+      await applyMissedPenalties(data)
+    }
     setLoading(false)
+  }
+
+  async function applyMissedPenalties(list) {
+    const now = new Date()
+    const missed = list.filter(
+      (m) => !m.is_completed && !m.missed_penalized && new Date(m.starts_at) < now
+    )
+    if (missed.length === 0) return
+
+    await Promise.all(
+      missed.map((m) => supabase.from('meetings').update({ missed_penalized: true }).eq('id', m.id))
+    )
+    await penalizeStreak(MISSED_PENALTY * missed.length)
+    setMeetings((prev) =>
+      prev.map((m) => (missed.some((x) => x.id === m.id) ? { ...m, missed_penalized: true } : m))
+    )
   }
 
   async function handleAdd(e) {
@@ -53,6 +78,19 @@ export default function Meetings() {
       setTitle('')
       setStartsAt('')
       setNote('')
+    }
+  }
+
+  async function toggleCompleted(meeting) {
+    const nextCompleted = !meeting.is_completed
+    const updates = {
+      is_completed: nextCompleted,
+      completed_at: nextCompleted ? new Date().toISOString() : null,
+    }
+    const { error } = await supabase.from('meetings').update(updates).eq('id', meeting.id)
+    if (!error) {
+      setMeetings((prev) => prev.map((m) => (m.id === meeting.id ? { ...m, ...updates } : m)))
+      await addXP(nextCompleted ? MEETING_XP : -MEETING_XP)
     }
   }
 
@@ -104,7 +142,12 @@ export default function Meetings() {
       ) : (
         <ul className="list">
           {upcoming.map((m) => (
-            <MeetingItem key={m.id} meeting={m} onDelete={deleteMeeting} />
+            <MeetingItem
+              key={m.id}
+              meeting={m}
+              onToggleCompleted={toggleCompleted}
+              onDelete={deleteMeeting}
+            />
           ))}
         </ul>
       )}
@@ -115,7 +158,13 @@ export default function Meetings() {
       ) : (
         <ul className="list">
           {past.map((m) => (
-            <MeetingItem key={m.id} meeting={m} past onDelete={deleteMeeting} />
+            <MeetingItem
+              key={m.id}
+              meeting={m}
+              past
+              onToggleCompleted={toggleCompleted}
+              onDelete={deleteMeeting}
+            />
           ))}
         </ul>
       )}
@@ -123,12 +172,21 @@ export default function Meetings() {
   )
 }
 
-function MeetingItem({ meeting, past, onDelete }) {
+function MeetingItem({ meeting, past, onToggleCompleted, onDelete }) {
   return (
     <li className={`list-item${past ? ' past' : ''}`}>
+      <input
+        type="checkbox"
+        checked={meeting.is_completed}
+        onChange={() => onToggleCompleted(meeting)}
+        title={`Tamamlandı (+${MEETING_XP} XP)`}
+      />
       <div className="meeting-main">
-        <span className="item-title">{meeting.title}</span>
+        <span className={`item-title${meeting.is_completed ? ' done' : ''}`}>{meeting.title}</span>
         {meeting.note && <span className="meeting-note">{meeting.note}</span>}
+        {meeting.missed_penalized && !meeting.is_completed && (
+          <span className="missed-badge">Kaçırıldı · -{MISSED_PENALTY} seri</span>
+        )}
       </div>
       <span className="meeting-datetime">{formatDateTime(meeting.starts_at)}</span>
       <button className="btn-danger" onClick={() => onDelete(meeting.id)}>Sil</button>

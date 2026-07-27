@@ -73,10 +73,22 @@ input, select, textarea {
   border-bottom-color: var(--accent);
 }
 
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-status {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .app-main {
   flex: 1;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 24px 20px 60px;
 }
@@ -275,6 +287,34 @@ input, select, textarea {
   color: var(--tag-personal-text);
 }
 
+.difficulty-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.difficulty-easy {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.difficulty-medium {
+  background: #ffecb3;
+  color: #996600;
+}
+
+.difficulty-hard {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.difficulty-boss {
+  background: #e6ddff;
+  color: #5722c9;
+}
+
 .today-toggle {
   display: flex;
   align-items: center;
@@ -293,6 +333,33 @@ input, select, textarea {
 
 .list-item.completed {
   opacity: 0.7;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+}
+
+.icon-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.restored-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent);
 }
 
 .empty-text {
@@ -319,4 +386,11 @@ input, select, textarea {
   flex-direction: column;
   flex: 1;
   gap: 2px;
+}
+
+.missed-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: #b91c1c;
+  margin-top: 2px;
 }
