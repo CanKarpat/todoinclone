@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
+import { Box, Button, Flex, Heading, Input, Stack, Text } from '@chakra-ui/react'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -22,38 +23,72 @@ export default function Login() {
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <h1>Giriş yap</h1>
+    <Flex minH="100vh" align="center" justify="center" bg="bg.subtle" p={5}>
+      <Box
+        bg="bg.panel"
+        borderWidth="1px"
+        borderColor="border"
+        borderRadius="xl"
+        p={8}
+        w="full"
+        maxW="380px"
+      >
+        <Flex
+          w="48px"
+          h="48px"
+          borderRadius="full"
+          align="center"
+          justify="center"
+          fontSize="20px"
+          color="white"
+          mb={4}
+          css={{ background: 'linear-gradient(135deg, {colors.brand.500}, {colors.brand.300})' }}
+        >
+          ⚔️
+        </Flex>
+        <Heading size="lg" mb={1}>Quest Master</Heading>
+        <Text fontSize="sm" color="fg.muted" mb={6}>Maceranın devamı için giriş yap</Text>
+
         <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label htmlFor="email">E-posta</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Şifre</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-          {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? 'Giriş yapılıyor...' : 'Giriş yap'}
-          </button>
+          <Stack gap={4}>
+            <Box>
+              <Text as="label" htmlFor="email" fontSize="sm" color="fg.muted" mb={1} display="block">
+                E-posta
+              </Text>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </Box>
+            <Box>
+              <Text as="label" htmlFor="password" fontSize="sm" color="fg.muted" mb={1} display="block">
+                Şifre
+              </Text>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </Box>
+            {error && <Text color="red.500" fontSize="sm">{error}</Text>}
+            <Button
+              type="submit"
+              colorPalette="brand"
+              loading={submitting}
+              loadingText="Giriş yapılıyor..."
+            >
+              Giriş yap
+            </Button>
+          </Stack>
         </form>
-      </div>
-    </div>
+      </Box>
+    </Flex>
   )
 }

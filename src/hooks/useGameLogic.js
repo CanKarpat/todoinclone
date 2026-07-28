@@ -1,13 +1,20 @@
 import { useAuth } from '../context/AuthContext'
 import { levelForXP } from '../gamification/xp'
-import { checkNewAchievements } from '../gamification/achievements'
+import { ACHIEVEMENTS, checkNewAchievements } from '../gamification/achievements'
 import { nextStreakState } from '../gamification/streak'
+
+function resolveAchievements(ids) {
+  return ids
+    .map((id) => ACHIEVEMENTS.find((a) => a.id === id))
+    .filter(Boolean)
+}
 
 export function useGameLogic() {
   const { profile, updateProfile } = useAuth()
 
   async function addXP(amount, { completedCount = 0 } = {}) {
     if (!profile) return null
+    const previousLevel = profile.player_level
     const nextXP = Math.max(0, profile.total_xp + amount)
     const nextLevel = levelForXP(nextXP)
     const context = { completedCount, streak: profile.daily_streak, level: nextLevel }
@@ -18,7 +25,12 @@ export function useGameLogic() {
       patch.unlocked_achievements = [...(profile.unlocked_achievements || []), ...newlyUnlocked]
     }
     await updateProfile(patch)
-    return { level: nextLevel, newlyUnlocked }
+    return {
+      level: nextLevel,
+      previousLevel,
+      leveledUp: nextLevel > previousLevel,
+      newlyUnlocked: resolveAchievements(newlyUnlocked),
+    }
   }
 
   async function checkStreak() {
@@ -34,7 +46,7 @@ export function useGameLogic() {
       patch.unlocked_achievements = [...(profile.unlocked_achievements || []), ...newlyUnlocked]
     }
     await updateProfile(patch)
-    return { streak: streakPatch.daily_streak, newlyUnlocked }
+    return { streak: streakPatch.daily_streak, newlyUnlocked: resolveAchievements(newlyUnlocked) }
   }
 
   async function penalizeStreak(amount) {

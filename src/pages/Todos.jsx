@@ -16,11 +16,15 @@ import { supabase } from '../supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { useGameLogic } from '../hooks/useGameLogic'
 import { DIFFICULTY_OPTIONS, difficultyMeta } from '../gamification/xp'
+import { notifyXPResult, notifyStreakResult } from '../gamification/notify'
 import { todayDateStr } from '../utils/date'
 import { Checkbox } from '../components/ui/checkbox'
+import { EmptyState } from '../components/ui/empty-state'
+import { Skeleton } from '../components/ui/skeleton'
 import { PlayerProfileCard } from '../components/game/PlayerProfileCard'
 import { QuestColumn } from '../components/game/QuestColumn'
 import { AchievementsPanel } from '../components/game/AchievementsPanel'
+import { ArchiveIcon, RestoreIcon, TrashIcon } from '../components/icons'
 
 const TAG_OPTIONS = [
   { value: '', label: 'Etiket yok' },
@@ -50,37 +54,6 @@ function formatDateHeading(iso) {
     month: 'long',
     year: 'numeric',
   })
-}
-
-function ArchiveIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="21 8 21 21 3 21 3 8" />
-      <rect x="1" y="3" width="22" height="5" />
-      <line x1="10" y1="12" x2="14" y2="12" />
-    </svg>
-  )
-}
-
-function RestoreIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12a9 9 0 1 0 3-6.7" />
-      <polyline points="3 3 3 9 9 9" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-    </svg>
-  )
 }
 
 function groupByCompletedDate(items) {
@@ -171,7 +144,8 @@ export default function Todos() {
       setTodos((prev) => prev.map((t) => (t.id === todo.id ? { ...t, ...updates } : t)))
       const completedCount = todos.filter((t) => t.done).length + (nextDone ? 1 : -1)
       const xpDelta = nextDone ? todo.xp_value : -todo.xp_value
-      await addXP(xpDelta, { completedCount })
+      const result = await addXP(xpDelta, { completedCount })
+      notifyXPResult(result, xpDelta)
     }
   }
 
@@ -235,7 +209,7 @@ export default function Todos() {
       setRoutines((prev) =>
         prev.map((r) => (r.id === routine.id ? { ...r, last_completed_date: nextValue } : r))
       )
-      if (!isDoneToday) await checkStreak()
+      if (!isDoneToday) notifyStreakResult(await checkStreak())
     }
   }
 
@@ -246,7 +220,24 @@ export default function Todos() {
     }
   }
 
-  if (loading) return <Text color="fg.muted">Yükleniyor...</Text>
+  if (loading) {
+    return (
+      <Box>
+        <Skeleton height="140px" borderRadius="xl" mb={6} />
+        <Grid templateColumns="repeat(auto-fit, minmax(280px, 1fr))" gap={5}>
+          {[0, 1, 2, 3].map((i) => (
+            <Box key={i} bg="bg.subtle" borderRadius="xl" overflow="hidden">
+              <Skeleton height="72px" />
+              <Stack gap={2} p={3}>
+                <Skeleton height="60px" borderRadius="lg" />
+                <Skeleton height="60px" borderRadius="lg" />
+              </Stack>
+            </Box>
+          ))}
+        </Grid>
+      </Box>
+    )
+  }
 
   const today = todayDateStr()
   const activeTodos = todos.filter((t) => !t.moved_to_completed)
@@ -283,7 +274,11 @@ export default function Todos() {
             </Stack>
           </form>
           {routines.length === 0 ? (
-            <Text fontSize="sm" color="fg.muted">Henüz rutin eklenmedi.</Text>
+            <EmptyState
+              icon="🔄"
+              title="Henüz rutin yok"
+              description="Her gün tekrarlayacağın bir alışkanlık ekle."
+            />
           ) : (
             <Stack gap={2}>
               {routines.map((routine) => (
@@ -309,7 +304,11 @@ export default function Todos() {
           titleColorDark="{colors.blue.300}"
         >
           {todayTodos.length === 0 ? (
-            <Text fontSize="sm" color="fg.muted">Bugün için işaretli görev yok.</Text>
+            <EmptyState
+              icon="🎯"
+              title="Bugün için görev yok"
+              description="Eğitimde'den bir görevi bugüne işaretle."
+            />
           ) : (
             <Stack gap={2}>
               {todayTodos.map((todo) => (
@@ -361,7 +360,11 @@ export default function Todos() {
             </Stack>
           </form>
           {otherTodos.length === 0 ? (
-            <Text fontSize="sm" color="fg.muted">Görev yok.</Text>
+            <EmptyState
+              icon="🏋️"
+              title="Görev yok"
+              description="Yukarıdan yeni bir görev ekleyerek başla."
+            />
           ) : (
             <Stack gap={2}>
               {otherTodos.map((todo) => (
@@ -388,7 +391,11 @@ export default function Todos() {
           titleColorDark="{colors.green.300}"
         >
           {completedGroups.length === 0 ? (
-            <Text fontSize="sm" color="fg.muted">Tamamlanmış görev yok.</Text>
+            <EmptyState
+              icon="✨"
+              title="Henüz kimse ustalaşmadı"
+              description="Bir görevi tamamlayıp arşivle, burada görünsün."
+            />
           ) : (
             <Stack gap={3}>
               {completedGroups.map((group) => (

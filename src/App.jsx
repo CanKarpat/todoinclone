@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Nav } from './components/Nav'
+import { Toaster } from './components/ui/toaster'
 import Login from './pages/Login'
 import Todos from './pages/Todos'
 import Meetings from './pages/Meetings'
@@ -18,6 +19,7 @@ function AppLayout({ children }) {
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Badge, Box, Button, Flex, Heading, Input, Stack, Text } from '@chakra-ui/react'
 import { supabase } from '../supabaseClient'
 import { useGameLogic } from '../hooks/useGameLogic'
+import { notifyXPResult, notifyMissedMeetings } from '../gamification/notify'
+import { Checkbox } from '../components/ui/checkbox'
+import { EmptyState } from '../components/ui/empty-state'
+import { Skeleton } from '../components/ui/skeleton'
+import { TrashIcon } from '../components/icons'
 
 const MEETING_XP = 50
 const MISSED_PENALTY = 10
@@ -26,6 +32,7 @@ export default function Meetings() {
 
   useEffect(() => {
     fetchMeetings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function fetchMeetings() {
@@ -53,7 +60,8 @@ export default function Meetings() {
     await Promise.all(
       missed.map((m) => supabase.from('meetings').update({ missed_penalized: true }).eq('id', m.id))
     )
-    await penalizeStreak(MISSED_PENALTY * missed.length)
+    const result = await penalizeStreak(MISSED_PENALTY * missed.length)
+    if (result) notifyMissedMeetings(missed.length, MISSED_PENALTY * missed.length)
     setMeetings((prev) =>
       prev.map((m) => (missed.some((x) => x.id === m.id) ? { ...m, missed_penalized: true } : m))
     )
@@ -90,7 +98,9 @@ export default function Meetings() {
     const { error } = await supabase.from('meetings').update(updates).eq('id', meeting.id)
     if (!error) {
       setMeetings((prev) => prev.map((m) => (m.id === meeting.id ? { ...m, ...updates } : m)))
-      await addXP(nextCompleted ? MEETING_XP : -MEETING_XP)
+      const xpDelta = nextCompleted ? MEETING_XP : -MEETING_XP
+      const result = await addXP(xpDelta)
+      notifyXPResult(result, xpDelta)
     }
   }
 
@@ -101,7 +111,19 @@ export default function Meetings() {
     }
   }
 
-  if (loading) return <p className="empty-text">Yükleniyor...</p>
+  if (loading) {
+    return (
+      <Box maxW="720px" mx="auto">
+        <Skeleton height="32px" width="200px" mb={6} />
+        <Skeleton height="90px" borderRadius="lg" mb={6} />
+        <Stack gap={2}>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} height="70px" borderRadius="lg" />
+          ))}
+        </Stack>
+      </Box>
+    )
+  }
 
   const now = new Date()
   const upcoming = meetings.filter((m) => new Date(m.starts_at) >= now)
@@ -110,55 +132,71 @@ export default function Meetings() {
     .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at))
 
   return (
-    <div className="narrow">
-      <h1>Toplantılar</h1>
+    <Box maxW="720px" mx="auto">
+      <Heading size="lg" mb={5}>Toplantılar</Heading>
 
-      <form className="add-form" onSubmit={handleAdd}>
-        <input
-          type="text"
-          placeholder="Toplantı başlığı"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <input
-          type="datetime-local"
-          value={startsAt}
-          onChange={(e) => setStartsAt(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Not (isteğe bağlı)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-        />
-        <button type="submit" className="btn-primary">Ekle</button>
-      </form>
+      <Box bg="bg.panel" borderWidth="1px" borderColor="border" borderRadius="xl" p={5} mb={6}>
+        <form onSubmit={handleAdd}>
+          <Stack gap={3}>
+            <Input
+              placeholder="Toplantı başlığı"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <Flex gap={3} wrap="wrap">
+              <Input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                flex="1"
+                minW="220px"
+              />
+              <Input
+                placeholder="Not (isteğe bağlı)"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                flex="1"
+                minW="220px"
+              />
+            </Flex>
+            <Button type="submit" colorPalette="brand" alignSelf="flex-start">Ekle</Button>
+          </Stack>
+        </form>
+      </Box>
 
-      {error && <p className="error-text">{error}</p>}
+      {error && <Text color="red.500" mb={4}>{error}</Text>}
 
-      <h2 className="section-title">Yaklaşan Toplantılar</h2>
+      <Heading size="sm" mb={3} color="fg.muted">Yaklaşan Toplantılar</Heading>
       {upcoming.length === 0 ? (
-        <p className="empty-text">Yaklaşan toplantı yok.</p>
+        <EmptyState
+          icon="📅"
+          title="Yaklaşan toplantı yok"
+          description="Yukarıdan yeni bir toplantı ekleyerek başla."
+        />
       ) : (
-        <ul className="list">
+        <Stack gap={2} mb={6}>
           {upcoming.map((m) => (
-            <MeetingItem
+            <MeetingCard
               key={m.id}
               meeting={m}
               onToggleCompleted={toggleCompleted}
               onDelete={deleteMeeting}
             />
           ))}
-        </ul>
+        </Stack>
       )}
 
-      <h2 className="section-title">Geçmiş</h2>
+      <Heading size="sm" mb={3} color="fg.muted">Geçmiş</Heading>
       {past.length === 0 ? (
-        <p className="empty-text">Geçmiş toplantı yok.</p>
+        <EmptyState
+          icon="🗂️"
+          title="Geçmiş toplantı yok"
+          description="Geçmiş toplantıların burada listelenecek."
+        />
       ) : (
-        <ul className="list">
+        <Stack gap={2}>
           {past.map((m) => (
-            <MeetingItem
+            <MeetingCard
               key={m.id}
               meeting={m}
               past
@@ -166,30 +204,65 @@ export default function Meetings() {
               onDelete={deleteMeeting}
             />
           ))}
-        </ul>
+        </Stack>
       )}
-    </div>
+    </Box>
   )
 }
 
-function MeetingItem({ meeting, past, onToggleCompleted, onDelete }) {
+function MeetingCard({ meeting, past, onToggleCompleted, onDelete }) {
+  const missed = meeting.missed_penalized && !meeting.is_completed
   return (
-    <li className={`list-item${past ? ' past' : ''}`}>
-      <input
-        type="checkbox"
-        checked={meeting.is_completed}
-        onChange={() => onToggleCompleted(meeting)}
-        title={`Tamamlandı (+${MEETING_XP} XP)`}
-      />
-      <div className="meeting-main">
-        <span className={`item-title${meeting.is_completed ? ' done' : ''}`}>{meeting.title}</span>
-        {meeting.note && <span className="meeting-note">{meeting.note}</span>}
-        {meeting.missed_penalized && !meeting.is_completed && (
-          <span className="missed-badge">Kaçırıldı · -{MISSED_PENALTY} seri</span>
-        )}
-      </div>
-      <span className="meeting-datetime">{formatDateTime(meeting.starts_at)}</span>
-      <button className="btn-danger" onClick={() => onDelete(meeting.id)}>Sil</button>
-    </li>
+    <Box
+      bg="bg.panel"
+      borderWidth="1px"
+      borderColor={missed ? 'red.300' : 'border'}
+      borderRadius="lg"
+      p={3}
+      opacity={past && !meeting.is_completed ? 0.75 : 1}
+    >
+      <Flex align="start" gap={3}>
+        <Checkbox
+          checked={meeting.is_completed}
+          onCheckedChange={() => onToggleCompleted(meeting)}
+          mt="1px"
+          title={`Tamamlandı (+${MEETING_XP} XP)`}
+        />
+        <Box flex="1" minW={0}>
+          <Text
+            fontSize="sm"
+            fontWeight="medium"
+            textDecoration={meeting.is_completed ? 'line-through' : 'none'}
+            color={meeting.is_completed ? 'fg.muted' : 'fg'}
+          >
+            {meeting.title}
+          </Text>
+          {meeting.note && <Text fontSize="xs" color="fg.muted" mt="1">{meeting.note}</Text>}
+          {missed && (
+            <Badge colorPalette="red" mt="2" size="sm">
+              Kaçırıldı · -{MISSED_PENALTY} seri
+            </Badge>
+          )}
+        </Box>
+        <Box textAlign="right" flexShrink={0}>
+          <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
+            {formatDateTime(meeting.starts_at)}
+          </Text>
+          <Flex justify="flex-end" mt={2}>
+            <Box
+              as="button"
+              type="button"
+              aria-label="Sil"
+              title="Sil"
+              color="red.500"
+              _hover={{ color: 'red.600' }}
+              onClick={() => onDelete(meeting.id)}
+            >
+              <TrashIcon />
+            </Box>
+          </Flex>
+        </Box>
+      </Flex>
+    </Box>
   )
 }
